@@ -4,6 +4,7 @@ from typing import Optional
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from .img_judge import ImageComparator
 
 class VideoProcessor:
     def __init__(self, input_path: str, output_dir: str, max_workers: int = 4):
@@ -12,6 +13,7 @@ class VideoProcessor:
         self.cap = None
         self.max_workers = max_workers
         self.lock = Lock()
+        self.image_comparator = ImageComparator(similarity_threshold=0.98)
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -50,18 +52,25 @@ class VideoProcessor:
         return single_image_size * estimated_frames
     
     def _save_frame(self, args):
-        """保存单帧图片的工作函数"""
+        """保存单帧图片的工作函��"""
         frame, saved_count = args
-        output_path = os.path.join(
-            self.output_dir, 
-            f"frame_{saved_count:06d}.jpg"
-        )
-        # 优化JPEG压缩参数
-        encode_params = [
-            cv2.IMWRITE_JPEG_QUALITY, 75,
-            cv2.IMWRITE_JPEG_OPTIMIZE, 1
-        ]
-        cv2.imwrite(output_path, frame, encode_params)
+        
+        # 检查图片相似度
+        with self.lock:  # 使用锁确保线程安全
+            is_similar, similarity = self.image_comparator.is_similar_to_last(frame)
+            
+        if not is_similar:
+            output_path = os.path.join(
+                self.output_dir, 
+                f"frame_{saved_count:06d}.jpg"
+            )
+            encode_params = [
+                cv2.IMWRITE_JPEG_QUALITY, 75,
+                cv2.IMWRITE_JPEG_OPTIMIZE, 1
+            ]
+            cv2.imwrite(output_path, frame, encode_params)
+            return True
+        return False
     
     def extract_frames(self, frame_interval: int = 1):
         if not self.cap:
@@ -71,7 +80,9 @@ class VideoProcessor:
         saved_count = 0
         frames_to_save = []
         
-        # 使用线程池处理图片保存
+        # 重置图片比较器
+        self.image_comparator.reset()
+        
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             while True:
                 ret, frame = self.cap.read()
@@ -80,18 +91,19 @@ class VideoProcessor:
                     
                 if frame_count % frame_interval == 0:
                     frames_to_save.append((frame.copy(), saved_count))
-                    saved_count += 1
                     
                     # 当累积足够的帧时，批量提交处理
                     if len(frames_to_save) >= self.max_workers * 2:
-                        executor.map(self._save_frame, frames_to_save)
+                        results = list(executor.map(self._save_frame, frames_to_save))
+                        saved_count += sum(1 for r in results if r)
                         frames_to_save = []
                 
                 frame_count += 1
             
             # 处理剩余的帧
             if frames_to_save:
-                executor.map(self._save_frame, frames_to_save)
+                results = list(executor.map(self._save_frame, frames_to_save))
+                saved_count += sum(1 for r in results if r)
         
         return saved_count
     
