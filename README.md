@@ -20,8 +20,13 @@
 
 ## 代码实现
 
-
 ### 使用到的第三方库介绍
+
+1. 下载这些库
+
+```bash
+pip install opencv-python numpy pillow
+```
 
 ```python
 import cv2 # 导入opencv库,这个库的作用是处理视频帧，
@@ -31,6 +36,7 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 ```
+
 #### 1. cv2库
 
 cv2库是opencv库的python接口，可以用来处理视频帧，可以通过如下的demo来了解cv2库的使用
@@ -54,7 +60,9 @@ ret, frame = cap.read()
 # 显示视频帧
 cv2.imshow('frame', frame)
 ```
-####  os库介绍
+
+#### os库介绍
+
 os库是python标准库，可以用来处理文件和目录，可以通过如下的demo来了解os库的使用
 
 ```python
@@ -62,7 +70,7 @@ import os
 
 # 获取当前工作目录
 print(os.getcwd())
-``` 
+```
 
 #### 3. typing库
 
@@ -119,9 +127,6 @@ lock = Lock()
 
 视频帧提取使用的是FFmpeg库，核心代码如下
 
-
-
-
 #### 2. 图片保存
 
 对于图片的保存，使用的是PIL库，核心代码如下
@@ -134,9 +139,3 @@ def save_image(image, output_dir, frame_index):
 ```
 
 PIL库的save方法，可以保存为jpg，png，bmp等格式，但是保存为jpg格式时，会丢失一部分图片信息，所以保存为jpg格式时，图片会变得模糊。
-
-
-
-
-
-
